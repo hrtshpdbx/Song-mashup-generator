@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.wav
+*.mp3
+*.m4a
+*.ckpt
+*.npz
+.mashup_cache/
+downloaded_songs/
+outputs/
+results/
+capstone_stable/
+.DS_Store
+*.deb
+.venv/

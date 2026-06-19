@@ -1,0 +1,8 @@
+sample_rate: 44100
+lambda_vh: 0.6
+target_bpm_strategy: mid
+output_dir: outputs
+output_name: mashup.wav
+tsm_backend: auto
+fast_mode: true
+parallel: true

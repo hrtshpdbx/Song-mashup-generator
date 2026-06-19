@@ -1,0 +1,14 @@
+numpy==1.26.4
+librosa==0.10.2.post1
+yt-dlp==2026.1.31
+pydub==0.25.1
+torch==2.4.1+cu124
+torchaudio==2.4.1+cu124
+soundfile==0.13.1
+demucs==4.0.1
+scipy==1.13.1
+pyloudnorm==0.2.0
+noisereduce==3.0.3
+pedalboard==0.9.23
+pandas==3.0.3
+
