@@ -12,7 +12,7 @@ Automatic music mashup generation from two YouTube tracks using stem separation,
 ## Repository structure
 
 ```text
-capstone-mashup/
+Song-mashup-generator/
 ├── README.md
 ├── LICENSE
 ├── .gitignore
@@ -45,7 +45,7 @@ A CUDA-capable GPU is recommended for faster stem separation, but the pipeline c
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/<YOUR_USERNAME>/capstone-mashup.git
+git clone https://github.com/<YOUR_USERNAME>/Song-mashup-generator.git
 cd capstone-mashup
 ```
 
@@ -65,7 +65,7 @@ Clone both repositories into the same parent directory:
 
 ```text
 projects/
-├── capstone-mashup/
+├── Song-mashup-generator/
 └── cog-all-in-one/
 ```
 
@@ -75,7 +75,7 @@ Example:
 mkdir projects
 cd projects
 
-git clone https://github.com/<YOUR_USERNAME>/capstone-mashup.git
+git clone https://github.com/<YOUR_USERNAME>/Song-mashup-generator.git
 git clone https://github.com/sakemin/all-in-one.git cog-all-in-one
 ```
 
@@ -83,7 +83,7 @@ After cloning, your directory structure should look like:
 
 ```text
 projects/
-├── capstone-mashup
+├── Song-mashup-generator
 └── cog-all-in-one
 ```
 
@@ -114,7 +114,7 @@ Make sure the following work successfully before returning to this repository:
 Once the analyzer is working, return to the mashup repository:
 
 ```bash
-cd ../capstone-mashup
+cd ../Song-mashup-generator
 ```
 
 ---
