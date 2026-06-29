@@ -11,4 +11,6 @@ pyloudnorm==0.2.0
 noisereduce==3.0.3
 pedalboard==0.9.23
 pandas==3.0.3
+transformers==4.30.2
+laion-clap==1.1.7
 
