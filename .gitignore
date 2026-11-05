@@ -13,3 +13,6 @@ capstone_stable/
 .DS_Store
 *.deb
 .venv/
+build/
+*.webm
+*.opus

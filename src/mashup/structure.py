@@ -15,7 +15,45 @@ from .download import convert_to_wav_if_needed
 from .utils import Segment, SongData
 
 
-COG_MODEL = "r8.im/sakemin/all-in-one-music-structure-analyzer@sha256:001b4137be6ac67bdc28cb5cffacf128b874f530258d033de23121e785cb7290"
+# All-In-One structure analyser, run through Cog.
+# Default: the local image built by scripts/build_allin1_image.sh (CUDA 11.8, works on RTX 40-series).
+# Override with the MASHUP_ALLIN1_IMAGE environment variable.
+# The published Replicate image below is CUDA 11.7: it crashes on RTX 40-series GPUs
+# (cuFFT error) and only works on older GPUs or on machines where Docker has no GPU access.
+DEFAULT_ALLIN1_IMAGE = "allin1-cu118"
+REPLICATE_ALLIN1_IMAGE = "r8.im/sakemin/all-in-one-music-structure-analyzer@sha256:001b4137be6ac67bdc28cb5cffacf128b874f530258d033de23121e785cb7290"
+COG_MODEL = REPLICATE_ALLIN1_IMAGE  # kept for backwards compatibility; not used by default
+
+# Fields kept from the analyser's JSON. All-In-One writes "beat_positions"; the capstone version
+# asked for "beatPositions", so beat positions (position of each beat in its bar) were always lost.
+STRUCTURE_FIELDS = ["bpm", "beats", "downbeats", "beat_positions", "segments"]
+
+
+def allin1_image() -> str:
+    return os.environ.get("MASHUP_ALLIN1_IMAGE", "").strip() or DEFAULT_ALLIN1_IMAGE
+
+
+def _check_analyser_available(image: str) -> None:
+    """Fail early with an actionable message instead of a Cog/Docker traceback."""
+    if shutil.which("cog") is None:
+        raise RuntimeError("Cog is not installed or not on PATH; it is needed for the All-In-One structure analyser.")
+    if shutil.which("docker") is None:
+        raise RuntimeError("Docker is not installed or not on PATH; it is needed for the All-In-One structure analyser.")
+    is_local_tag = "/" not in image.split(":")[0]
+    if is_local_tag:
+        found = subprocess.run(["docker", "image", "inspect", image], capture_output=True, text=True)
+        if found.returncode != 0:
+            raise RuntimeError(
+                f"Docker image '{image}' not found. Build it with scripts/build_allin1_image.sh "
+                f"(or set MASHUP_ALLIN1_IMAGE to another image)."
+            )
+
+
+def select_structure_fields(data: dict) -> dict:
+    result = {field: data.get(field) for field in STRUCTURE_FIELDS}
+    if result["beat_positions"] is None and data.get("beatPositions") is not None:
+        result["beat_positions"] = data["beatPositions"]
+    return result
 
 
 def load_index_json(json_path: str | Path) -> dict:
@@ -31,11 +69,19 @@ def _coerce_json_payload(content: str) -> dict:
 
 
 def analyze_audio_and_save_json(audio_path: str | Path, output_folder: str | Path, json_filename: str) -> dict:
-    output_folder = Path(output_folder)
+    output_folder = Path(output_folder).resolve()
     output_folder.mkdir(parents=True, exist_ok=True)
-    wav_path = convert_to_wav_if_needed(audio_path)
+    # Cog runs with cwd=output_folder, so the input path must be absolute.
+    wav_path = str(Path(convert_to_wav_if_needed(audio_path)).resolve())
 
-    cmd = ["cog", "predict", COG_MODEL, "-i", f"music_input=@{wav_path}"]
+    image = allin1_image()
+    _check_analyser_available(image)
+
+    # Remove outputs from earlier runs so a stale file can never be mistaken for this run's result.
+    for stale in glob.glob(str(output_folder / "output*.json")):
+        os.remove(stale)
+
+    cmd = ["cog", "predict", image, "-i", f"music_input=@{wav_path}"]
     subprocess.run(cmd, check=True, cwd=str(output_folder))
 
     output_jsons = glob.glob(str(output_folder / "output*.json"))
@@ -49,8 +95,7 @@ def analyze_audio_and_save_json(audio_path: str | Path, output_folder: str | Pat
     with open(json_path, "r", encoding="utf-8") as f:
         data = _coerce_json_payload(f.read())
 
-    select_fields = ["bpm", "beats", "downbeats", "beatPositions", "segments"]
-    result = {field: data.get(field) for field in select_fields}
+    result = select_structure_fields(data)
 
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
@@ -102,10 +147,11 @@ def load_song(song_dir: str | Path, sr: int = 44100) -> SongData:
             json.dump(meta, f, indent=2)
     meta = load_index_json(json_path)
 
-    bpm = float(meta.get("bpm", 120.0))
-    beats = np.array(meta.get("beats", []), dtype=float)
-    downbeats = np.array(meta.get("downbeats", []), dtype=float)
-    beat_positions = np.array(meta.get("beat_positions", []), dtype=int)
+    bpm = float(meta.get("bpm") or 120.0)
+    beats = np.array(meta.get("beats") or [], dtype=float)
+    downbeats = np.array(meta.get("downbeats") or [], dtype=float)
+    # Older JSONs (capstone runs) have "beatPositions": null instead of "beat_positions".
+    beat_positions = np.array(meta.get("beat_positions") or meta.get("beatPositions") or [], dtype=int)
     segments = _segments_from_meta(meta)
 
     return SongData(

@@ -1,0 +1,49 @@
+# Cog build for the All-In-One music structure analyser (Kim & Nam, 2023), packaged by
+# sakemin/all-in-one (branch `cog`, commit bc7d092c4bb9231543e78e4742d7707597fd090a).
+#
+# Built by scripts/build_allin1_image.sh, which copies this file over the upstream cog.yaml.
+# Changes from upstream, and why:
+#   * cuda 11.7 -> 11.8: CUDA 11.7's cuFFT fails on RTX 40-series (Ada, sm_89) GPUs with
+#     "cuFFT error: CUFFT_INTERNAL_ERROR"; 11.8 is the first release that supports them.
+#   * numpy pinned to 1.26.4 and madmom pinned to a fixed commit, built against that numpy:
+#     unpinned builds now pull numpy 2.x, which madmom and torch 2.0.1 don't support.
+#   * NATTEN built from source WITH CUDA: no GPU is visible during `docker build`, so NATTEN's
+#     setup.py silently builds a CPU-only extension unless FORCE_CUDA=1. A CPU-only NATTEN makes
+#     the model step fail on GPU with "NATTEN is not compiled with CUDA!". The prebuilt-wheel
+#     index (shi-labs.com) currently has an expired TLS certificate, so the source build is the
+#     reliable route. TORCH_CUDA_ARCH_LIST="8.9" targets the RTX 40-series only (shorter build);
+#     add e.g. "8.6" for RTX 30-series.
+#   * Model weights (8 Harmonix checkpoints + the HT-Demucs checkpoint) are downloaded at build
+#     time, so each `cog predict` doesn't re-download ~0.4 GB.
+#   * Python packages pinned to the versions that resolved in the first working build (2026-11-05).
+
+build:
+  gpu: true
+  cuda: "11.8"
+
+  system_packages:
+    - "ffmpeg"
+
+  python_version: "3.9"
+
+  python_packages:
+    - "torch==2.0.1"
+    - "numpy==1.26.4"
+    - "hydra-core==1.3.8"
+    - "huggingface_hub==1.8.0"
+    - "tqdm==4.70.1"
+    - "matplotlib==3.9.4"
+    - "omegaconf==2.3.1"
+    - "demucs==4.0.1"
+    - "librosa==0.11.0"
+    - "PyMuPDF==1.26.5"
+    - "ninja==1.13.2"
+
+  run:
+    - pip3 install --no-cache-dir cython==3.3.1 "numpy==1.26.4"
+    - pip3 install --no-cache-dir --no-build-isolation "git+https://github.com/CPJKU/madmom@27f032e8947204902c675e5e341a3faf5dc86dae"
+    - FORCE_CUDA=1 TORCH_CUDA_ARCH_LIST="8.9" MAX_JOBS=8 pip3 install --no-cache-dir --no-build-isolation --no-binary natten natten==0.14.6
+    - python -c "import torch; torch.hub.load_state_dict_from_url('https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th', map_location='cpu', check_hash=True)"
+    - python -c "from huggingface_hub import hf_hub_download as d; [d(repo_id='taejunkim/allinone', filename=f) for f in ['harmonix-fold0-0vra4ys2.pth','harmonix-fold1-3ozjhtsj.pth','harmonix-fold2-gmgo0nsy.pth','harmonix-fold3-i92b7m8p.pth','harmonix-fold4-1bql5qo0.pth','harmonix-fold5-x4z5zeef.pth','harmonix-fold6-x7t226rq.pth','harmonix-fold7-qwwskhg6.pth']]"
+
+predict: "predict.py:Predictor"

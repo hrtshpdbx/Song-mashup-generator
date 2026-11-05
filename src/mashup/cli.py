@@ -9,7 +9,7 @@ from typing import Optional
 import soundfile as sf
 
 from .assembly import assemble_full_mashup, fallback_vocals_over_mashup, time_stretch_audio
-from .download import download_youtube_audio, ensure_dir
+from .download import ensure_dir, get_audio
 from .evaluation import evaluate_mashup
 from .features import extract_all_stem_features_stretched, load_original_audio_into_stretched, precompute_all_stems
 from .scoring import select_quartet
@@ -17,9 +17,10 @@ from .separation import extract_stems
 from .structure import analyze_audio_and_save_json, load_song
 
 
-def prepare_song_folder(base_folder, song_label, youtube_url):
+def prepare_song_folder(base_folder, song_label, source):
+    """`source` is a YouTube URL or a local audio file (wav/webm/opus/m4a/mp3/flac/ogg)."""
     song_folder = ensure_dir(Path(base_folder) / song_label)
-    original_wav = download_youtube_audio(youtube_url, song_folder, "original")
+    original_wav = get_audio(source, song_folder, "original")
     extract_stems(original_wav, song_folder)
     json_filename = f"{song_label}.json"
     analyze_audio_and_save_json(original_wav, song_folder, json_filename)
@@ -145,7 +146,7 @@ def main(
 
     human_eval = None
     if human_mashup_url:
-        print(f"[INFO] Processing human mashup from URL: {human_mashup_url}")
+        print(f"[INFO] Processing human mashup: {human_mashup_url}")
         import tempfile
         with tempfile.TemporaryDirectory() as tmpdir:
             human_folder, human_wav = prepare_song_folder(tmpdir, "human_mashup", human_mashup_url)
@@ -163,8 +164,8 @@ def main(
 
 def build_parser():
     parser = argparse.ArgumentParser(description="Multi-segment stem-level mashup with policy-driven per-segment selection")
-    parser.add_argument("song1_url", type=str)
-    parser.add_argument("song2_url", type=str)
+    parser.add_argument("song1_url", type=str, help="YouTube URL or local audio file for song 1")
+    parser.add_argument("song2_url", type=str, help="YouTube URL or local audio file for song 2")
     parser.add_argument("--output-dir", type=str, required=True)
     parser.add_argument("--output-name", type=str, default="mashup.wav")
     parser.add_argument("--target-bpm", type=str, default="mid", help='Target BPM: "mid", "min", "avg", or numeric')
@@ -172,7 +173,7 @@ def build_parser():
     parser.add_argument("--no-parallel", action="store_true", help="Disable multiprocessing for precompute")
     parser.add_argument("--tsm-backend", type=str, default="auto", choices=["auto", "rubberband", "librosa"])
     parser.add_argument("--slow-mode", action="store_true", help="Disable fast-mode tweaks")
-    parser.add_argument("--human-mashup-url", type=str, default=None, help="Optional YouTube URL for human mashup audio")
+    parser.add_argument("--human-mashup-url", type=str, default=None, help="Optional YouTube URL or local audio file of the human mashup")
     return parser
 
 

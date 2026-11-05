@@ -10,6 +10,9 @@ import yt_dlp
 from pydub import AudioSegment
 
 
+AUDIO_EXTENSIONS = {".mp3", ".m4a", ".aac", ".flac", ".ogg", ".webm", ".opus"}
+
+
 def ensure_dir(path: str | Path) -> Path:
     p = Path(path)
     p.mkdir(parents=True, exist_ok=True)
@@ -32,11 +35,42 @@ def convert_to_wav_if_needed(audio_path: str | Path) -> str:
     ext = Path(audio_path).suffix.lower()
     if ext == ".wav":
         return audio_path
-    if ext in {".mp3", ".m4a", ".aac", ".flac", ".ogg"}:
+    if ext in AUDIO_EXTENSIONS:
         wav_path = str(Path(audio_path).with_suffix(".wav"))
         subprocess.run(["ffmpeg", "-y", "-i", audio_path, wav_path], check=True)
         return wav_path
     raise ValueError(f"Unsupported audio type: {audio_path}")
+
+
+def is_local_audio(source: str | Path) -> bool:
+    """True if `source` is an existing audio file rather than a URL."""
+    p = Path(str(source)).expanduser()
+    return p.is_file() and p.suffix.lower() in AUDIO_EXTENSIONS | {".wav"}
+
+
+def prepare_local_audio(source: str | Path, target_folder: str | Path, base_filename: str = "original") -> str:
+    """Decode a local audio file (e.g. a .webm/Opus file saved by tools/fetch_audio.py) to
+    <target_folder>/<base_filename>.wav at 44.1 kHz stereo, the rate HT-Demucs and the rest of
+    the pipeline expect. The source file is left untouched."""
+    target_folder = ensure_dir(target_folder)
+    src = Path(str(source)).expanduser().resolve()
+    if not src.is_file():
+        raise FileNotFoundError(f"Audio file not found: {src}")
+    wav_path = (target_folder / f"{base_filename}.wav").resolve()
+    if src == wav_path:
+        return str(wav_path)
+    subprocess.run(
+        ["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-vn", "-ar", "44100", "-ac", "2", str(wav_path)],
+        check=True,
+    )
+    return str(wav_path)
+
+
+def get_audio(source: str, target_folder: str | Path, base_filename: str = "original") -> str:
+    """Local audio file or YouTube URL -> <target_folder>/original.wav."""
+    if is_local_audio(source):
+        return prepare_local_audio(source, target_folder, base_filename)
+    return download_youtube_audio(source, target_folder, base_filename)
 
 
 def download_youtube_audio(url: str, target_folder: str | Path, base_filename: str) -> str:
@@ -48,11 +82,8 @@ def download_youtube_audio(url: str, target_folder: str | Path, base_filename: s
         "outtmpl": output_template,
         "quiet": True,
         "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "m4a"}],
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9",
-        },
-        "extractor_args": {"youtube": {"player_client": ["android"]}},
+        # No forced player client or User-Agent: yt-dlp's defaults track YouTube's changes; the old
+        # "android" client override now leads to HTTP 403 errors.
         "noplaylist": True,
     }
 

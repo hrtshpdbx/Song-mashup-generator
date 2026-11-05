@@ -15,7 +15,14 @@ def test_cli_parser():
         ]
     )
 
-    assert args.url1 == "https://youtu.be/dQw4w9WgXcQ?feature=shared"
-    assert args.url2 == "https://youtu.be/KvknOXGPzCQ?feature=shared"
+    assert args.song1_url == "https://youtu.be/a"
+    assert args.song2_url == "https://youtu.be/b"
     assert args.output_dir == "outputs/test"
     assert args.output_name == "test.wav"
+
+
+def test_cli_parser_accepts_local_files():
+    args = build_parser().parse_args(["/data/a.webm", "/data/b.webm", "--output-dir", "out",
+                                      "--human-mashup-url", "/data/m.webm"])
+    assert args.song1_url == "/data/a.webm"
+    assert args.human_mashup_url == "/data/m.webm"
