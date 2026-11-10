@@ -16,3 +16,4 @@ capstone_stable/
 build/
 *.webm
 *.opus
+src/mashup.egg-info/
